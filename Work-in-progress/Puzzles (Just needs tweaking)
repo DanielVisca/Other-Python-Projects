@@ -1,0 +1,826 @@
+class Puzzle:
+    """"
+    Snapshot of a full-information puzzle, which may be solved, unsolved,
+    or even unsolvable.
+    """
+
+    def fail_fast(self):
+        """
+        Return True if Puzzle self can never be extended to a solution.
+
+        Override this in a subclass where you can determine early that
+        this Puzzle can't be solved.
+
+        @type self: Puzzle
+        @rtype: bool
+        """
+        return False
+
+    def is_solved(self):
+        """
+        Return True iff Puzzle self is solved.
+
+        This is an abstract method that must be implemented
+        in a subclass.
+
+        @type self: Puzzle
+        @rtype: bool
+        """
+        raise NotImplementedError
+
+    def extensions(self):
+        """
+        Return list of legal extensions of Puzzle self.
+
+        This is an abstract method that must be implemented
+        in a subclass.
+
+        @type self: Puzzle
+        @rtype: generator[Puzzle]
+        """
+        raise NotImplementedError
+        
+        
+"""
+Some functions for working with puzzles
+"""
+from Puzzle import Puzzle
+from collections import deque
+
+# set higher recursion limit
+# which is needed in PuzzleNode.__str__
+# you may uncomment the next lines on a unix system such as CDF
+# import resource
+# resource.setrlimit(resource.RLIMIT_STACK, (2**29, -1))
+import sys
+sys.setrecursionlimit(10**6)
+
+
+# TODO
+# implement depth_first_solve
+# do NOT change the type contract
+# you are welcome to create any helper functions
+# you like
+def depth_first_solve(puzzle):
+    """
+    Return a path from PuzzleNode(puzzle) to a PuzzleNode containing
+    a solution, with each child containing an extension of the puzzle
+    in its parent.  Return None if this is not possible.
+
+    @type puzzle: Puzzle
+    @rtype: PuzzleNode
+    """
+    #set of all nodes we have seen
+    viewed = set()
+    
+    #The root node
+    root_node = PuzzleNode(puzzle)
+    
+
+    return depth_first_search(PuzzleNode(puzzle), viewed)
+
+def depth_first_search(first, viewed):
+    """
+    Return the PuzzleNode start as the first node in a linked list of nodes
+    leading to the solution otherwise return None
+    @type start: PuzzleNode
+    @type visited: set[str]
+    @rtype: PuzzleNode | None
+    """
+           
+    if str(first.puzzle) in viewed:
+        return None
+    elif first.puzzle.fail_fast():
+        return None
+    else:
+        viewed.add(str(first.puzzle))
+        if first.puzzle.is_solved():
+            return first
+               # otherwise, explore children (extensions) before siblings
+        else:
+            if not first:
+                return None
+            else:
+                for i in first.puzzle.extensions():
+                    answer = depth_first_search(PuzzleNode(i), viewed)
+                    answer.parent = first
+                    first.children.append(answer)
+                    return first
+                   # all puzzle configs searched and no solution found
+            return None
+
+    
+
+
+def breadth_first_solve(puzzle):
+    """
+    Return a path from PuzzleNode(puzzle) to a PuzzleNode containing
+    a solution, with each child PuzzleNode containing an extension
+    of the puzzle in its parent.  Return None if this is not possible.
+
+    @type puzzle: Puzzle
+    @rtype: PuzzleNode
+    """
+    viewed = set()
+    queue = deque()
+    root = PuzzleNode(puzzle)
+    queue.append(root)
+    
+    while queue: 
+        item = queue.popleft()
+        
+        
+        if str(item.puzzle) in viewed:
+            pass
+      
+        else:
+            viewed.add(str(item.puzzle))
+            
+            if item.puzzle.is_solved():
+                while item != root:
+                    item.parent.children = [item]
+                    item = item.parent
+                return root
+            
+            else:
+                if item.puzzle.extensions() == None:
+                    continue
+                else:
+                    for i in item.puzzle.extensions():
+                        queue.append(PuzzleNode(i, [], item))
+    return None   
+               
+               
+
+#if puzzle 
+# Class PuzzleNode helps build trees of PuzzleNodes that have
+# an arbitrary number of children, and a parent.
+class PuzzleNode:
+    """
+    A Puzzle configuration that refers to other configurations that it
+    can be extended to.
+    """
+
+    def __init__(self, puzzle=None, children=None, parent=None):
+        """
+        Create a new puzzle node self with configuration puzzle.
+
+        @type self: PuzzleNode
+        @type puzzle: Puzzle | None
+        @type children: list[PuzzleNode]
+        @type parent: PuzzleNode | None
+        @rtype: None
+        """
+        self.puzzle, self.parent = puzzle, parent
+        if children is None:
+            self.children = []
+        else:
+            self.children = children[:]
+
+    def __eq__(self, other):
+        """
+        Return whether Puzzle self is equivalent to other
+
+        @type self: PuzzleNode
+        @type other: PuzzleNode | Any
+        @rtype: bool
+
+        >>> from word_ladder_puzzle import WordLadderPuzzle
+        >>> pn1 = PuzzleNode(WordLadderPuzzle("on", "no", {"on", "no", "oo"}))
+        >>> pn2 = PuzzleNode(WordLadderPuzzle("on", "no", {"on", "oo", "no"}))
+        >>> pn3 = PuzzleNode(WordLadderPuzzle("no", "on", {"on", "no", "oo"}))
+        >>> pn1.__eq__(pn2)
+        True
+        >>> pn1.__eq__(pn3)
+        False
+        """
+        return (type(self) == type(other) and
+                self.puzzle == other.puzzle and
+                all([x in self.children for x in other.children]) and
+                all([x in other.children for x in self.children]))
+
+    def __str__(self):
+        """
+        Return a human-readable string representing PuzzleNode self.
+
+        # doctest not feasible.
+        """
+        return "{}\n\n{}".format(self.puzzle,
+                                 "\n".join([str(x) for x in self.children]))
+                                 
+
+class WordLadderPuzzle(Puzzle):
+    """
+    A word-ladder puzzle that may be solved, unsolved, or even unsolvable.
+    """
+
+    def __init__(self, from_word, to_word, ws):
+        """
+        Create a new word-ladder puzzle with the aim of stepping
+        from from_word to to_word using words in ws, changing one
+        character at each step.
+
+        @type from_word: str
+        @type to_word: str
+        @type ws: set[str]
+        @rtype: None
+        """
+        (self._from_word, self._to_word, self._word_set) = (from_word,
+                                                            to_word, ws)
+        # set of characters to use for 1-character changes
+        self._chars = "abcdefghijklmnopqrstuvwxyz"
+        
+    def __str__(self): 
+        """
+        Return a human-readable string representation of WordLadderPuzzle self.
+        
+        >>> word_set = {"cost", "save", "case", "cave", "save", "love"} 
+        >>> w = WordLadderPuzzle("cost", "save", word_set)
+        >>> print(w)
+        cost --> ____ --> save
+        """ 
+        
+        return (self._from_word + ' --> ' + '_'*len(self._from_word) + ' --> ' + self._to_word)
+    
+    def __eq__(self, other):
+        """
+        @type self: WordLadderPuzzle
+        @type: object
+        @rtype: bool
+        
+        Return True if other is equal to self, otherwise return False
+        
+
+        """
+       
+        return (type(other) == type(self) and
+                self._from_word == other._from_word and
+                self._to_word == other._to_word and
+                self._word_set == other._word_set)       
+    
+    def extensions(self):
+        """
+        Return list of extensions of WordLadderPuzzle.
+
+        @type self: WordLadderPuzzle
+        @rtype: list[WordLadderPuzzle]
+
+        >>> word_set = {"cost", "save", "case", "cave", "save", "love"} 
+        >>> w = WordLadderPuzzle("cost", "save", word_set)
+        >>> L1 = list(w.extensions())
+        >>> L2 = ['host', 'lost', 'most', 'post']
+        >>> L1 == L2
+        True
+        """ 
+     #   list = []   
+      #  for n in range(len(self._from_word)): 
+       #     copy = self._from_word.copy()
+        #    for i in self._chars:
+         #    if copy == self._to_word:
+          #          return list
+        
+       # create a smaller word_set
+        sample_set = set()
+        list_words =[]
+        for char in self._word_set: 
+            if len(char) == len(self._from_word):
+                sample_set.add(char)
+        
+        i = 0
+        #run through each character in from_word and check to see if any
+        #other character in self._chars set in the same place would still form
+        #a word in word_set
+        #if so, append to a list and return 
+        #while i < len(self._from_word):
+        
+        for char in self._chars: 
+            s = ''
+            s = s + char + s[i+1:]
+            if s in self._word_set:
+                list_words.append(s)
+            
+                    
+        return list_words
+    
+    
+    def is_solved(self):
+        """
+        Return whether WordLadder puzzle is solved or not. 
+        
+        @type self: WordLadderPuzzle
+        @rtype: bool
+        
+        >>> word_set = {"cost", "save", "case", "cave", "save", "love"} 
+        >>> w = WordLadderPuzzle("cost", "cost", word_set)
+        >>> w.is_solved()
+        True
+        >>> w1 = WordLadderPuzzle("cost", "save", word_set)
+        >>> w1.is_solved()
+        False
+        """
+        
+        return (self._from_word == self._to_word)
+
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
+    from puzzle_tools import breadth_first_solve, depth_first_solve
+    from time import time
+    with open("words", "r") as words:
+        word_set = set(words.read().split())
+    w = WordLadderPuzzle("same", "cost", word_set)
+    start = time()
+    sol = breadth_first_solve(w)
+    end = time()
+    print("Solving word ladder from same->cost")
+    print("...using breadth-first-search")
+    print("Solutions: {} took {} seconds.".format(sol, end - start))
+    start = time()
+    sol = depth_first_solve(w)
+    end = time()
+    print("Solving word ladder from same->cost")
+    print("...using depth-first-search")
+    print("Solutions: {} took {} seconds.".format(sol, end - start))
+
+
+class SudokuPuzzle(Puzzle):
+    """
+    A sudoku puzzle that may be solved, unsolved, or even unsolvable.
+    """
+
+    def __init__(self, n, symbols, symbol_set):
+        """
+        Create a new nxn SudokuPuzzle self with symbols
+        from symbol_set already selected.
+
+        @type self: SudokuPuzzle
+        @type n: int
+        @type symbols: list[str]
+        @type symbol_set: set[str]
+        """
+        assert n > 0
+        assert round(n ** (1 / 2)) * round(n ** (1 / 2)) == n
+        assert all([d in (symbol_set | {"*"}) for d in symbols])
+        assert len(symbol_set) == n
+        assert len(symbols) == n ** 2
+        self._n, self._symbols, self._symbol_set = n, symbols, symbol_set
+
+    def __eq__(self, other):
+        """
+        Return whether SudokuPuzzle self is equivalent to other.
+
+        @type self: SudokuPuzzle
+        @type other: SudokuPuzzle | Any
+        @rtype: bool
+
+        >>> grid1 = ["A", "B", "C", "D"]
+        >>> grid1 += ["D", "C", "B", "A"]
+        >>> grid1 += ["*", "D", "*", "*"]
+        >>> grid1 += ["*", "*", "*", "*"]
+        >>> s1 = SudokuPuzzle(4, grid1, {"A", "B", "C", "D"})
+        >>> grid2 = ["A", "B", "C", "D"]
+        >>> grid2 += ["D", "C", "B", "A"]
+        >>> grid2 += ["*", "D", "*", "*"]
+        >>> grid2 += ["*", "*", "*", "*"]
+        >>> s2 = SudokuPuzzle(4, grid2, {"A", "B", "C", "D"})
+        >>> s1.__eq__(s2)
+        True
+        >>> grid3 = ["A", "B", "C", "D"]
+        >>> grid3 += ["D", "C", "B", "A"]
+        >>> grid3 += ["*", "D", "*", "*"]
+        >>> grid3 += ["*", "A", "*", "*"]
+        >>> s3 = SudokuPuzzle(4, grid3, {"A", "B", "C", "D"})
+        >>> s1.__eq__(s3)
+        False
+        """
+        return (type(other) == type(self) and
+                self._n == other._n and self._symbols == other._symbols and
+                self._symbol_set == other._symbol_set)
+
+    def __str__(self):
+        """
+        Return a human-readable string representation of SudokuPuzzle self.
+
+        >>> grid = ["A", "B", "C", "D"]
+        >>> grid += ["D", "C", "B", "A"]
+        >>> grid += ["*", "D", "*", "*"]
+        >>> grid += ["*", "*", "*", "*"]
+        >>> s = SudokuPuzzle(4, grid, {"A", "B", "C", "D"})
+        >>> print(s)
+        AB|CD
+        DC|BA
+        -----
+        *D|**
+        **|**
+        """
+
+        def row_pickets(row):
+            """
+            Return string of characters in row with | divider
+            between groups of sqrt(n)
+
+            @type row: list[str]
+            @rtype: str
+            """
+            string_list = []
+            r = round(self._n ** (1 / 2))
+            for i in range(self._n):
+                if i > 0 and i % r == 0:
+                    string_list.append("|")
+                string_list.append(row[i])
+            return "".join(string_list)
+
+        def table_dividers(table):
+            """
+            Return rows of strings in table with
+            "-----" dividers between groups of sqrt(n) rows.
+
+            @type table: list[str]
+            @rtype: list[str]
+            """
+            r = round(self._n ** (1 / 2))
+            t, divider = [], "-" * (self._n + r - 1)
+            for i in range(self._n):
+                if i > 0 and i % r == 0:
+                    t.append(divider)
+                t.append(table[i])
+            return t
+
+        rows = [row_pickets([self._symbols[r * self._n + c]
+                             for c in range(self._n)])
+                for r in range(self._n)]
+        rows = table_dividers(rows)
+        return "\n".join(rows)
+
+    def is_solved(self):
+        """
+        Return whether Puzzle self is solved.
+
+        @type self: Puzzle
+        @rtype: bool
+
+        >>> grid = ["A", "B", "C", "D"]
+        >>> grid += ["C", "D", "A", "B"]
+        >>> grid += ["B", "A", "D", "C"]
+        >>> grid += ["D", "C", "B", "A"]
+        >>> s = SudokuPuzzle(4, grid, {"A", "B", "C", "D"})
+        >>> s.is_solved()
+        True
+        >>> grid[9] = "D"
+        >>> grid[10] = "A"
+        >>> s = SudokuPuzzle(4, grid, {"A", "B", "C", "D"})
+        >>> s.is_solved()
+        False
+        """
+        # convenient names
+        n, symbols = self._n, self._symbols
+        # no "*" left and all rows, column, subsquares have correct symbols
+        return ("*" not in symbols and
+                all([(self._row_set(i) == self._symbol_set and
+                      self._column_set(i) == self._symbol_set and
+                      self._subsquare_set(i) ==
+                      self._symbol_set) for i in range(n ** 2)]))
+
+    def extensions(self):
+        """
+        Return list of extensions of SudokuPuzzle self.
+
+        @type self: Puzzle
+        @rtype: list[Puzzle]
+
+        >>> grid = ["A", "B", "C", "D"]
+        >>> grid += ["C", "D", "A", "B"]
+        >>> grid += ["B", "A", "D", "C"]
+        >>> grid += ["D", "C", "B", "*"]
+        >>> s = SudokuPuzzle(4, grid, {"A", "B", "C", "D"})
+        >>> L1 = list(s.extensions())
+        >>> grid[-1] = "A"
+        >>> L2 = [SudokuPuzzle(4, grid, {"A", "B", "C", "D"})]
+        >>> len(L1) == len(L2)
+        True
+        >>> all([s in L2 for s in L1])
+        True
+        >>> all([s in L1 for s in L2])
+        True
+        """
+        # convenient names
+        symbols, symbol_set, n = self._symbols, self._symbol_set, self._n
+        if "*" not in symbols:
+            # return an empty generator
+            return [_ for _ in []]
+        else:
+            # position of first empty position
+            i = symbols.index("*")
+            # allowed symbols at position i
+            # A | B == A.union(B)
+            allowed_symbols = (self._symbol_set -
+                               (self._row_set(i) |
+                                self._column_set(i) |
+                                self._subsquare_set(i)))
+            # list of SudokuPuzzles with each legal digit at position i
+            return (
+                [SudokuPuzzle(n,
+                 symbols[:i] + [d] + symbols[i + 1:], symbol_set)
+                 for d in allowed_symbols])
+
+        allowed_symbols = (self._symbol_set -
+                                       (self._row_set(i) |
+                                        self._column_set(i) |
+                                        self._subsquare_set(i)))           
+    
+    def fail_fast(self):
+            """        
+            Return False if current puzzle configuration is unsolvable
+            through a series of extensions. Return True otherwise. 
+            
+            @type self: SudokuPuzzle
+            @rtype: bool
+            
+            >>> grid = ["A", "B", "C", "D"]
+            >>> grid += ["C", "D", "A", "B"]
+            >>> grid += ["B", "A", "D", "C"]
+            >>> grid += ["D", "C", "B", "*"]
+            >>> s = SudokuPuzzle(4, grid, {"A", "B", "C", "D"})
+            >>> s.fail_fast()
+            >>> True
+            """
+            symbols, symbol_set, n = self._symbols, self._symbol_set, self._n
+     
+            if "*" not in self._symbols:
+                return True
+            elif self._symbols.count("*") == 1:
+                checker = list(self.extensions())
+                return any(char.is_solved() for char in checker)
+            else: 
+                g = list(self.extensions())
+                for char in g: 
+                    char.fail_fast()
+    
+    # some helper methods
+    def _row_set(self, m):
+        #
+        # Return set of symbols in row of SudokuPuzzle self's symbols
+        # where position m occurs.
+        #
+        # @type self: SudokuPuzzle
+        # @type m: int
+        assert 0 <= m < self._n ** 2
+        # convenient names
+        n, symbols = self._n, self._symbols
+        # first position in m's row
+        r = (m // n) * n
+        # set of elements from symbols[r] .. symbols[r+n-1]
+        return set([symbols[r + i] for i in range(n)])
+
+    def _column_set(self, m):
+        # Return set of symbols in column of SudokuPuzzle self's symbols
+        # where position m occurs.
+        #
+        # @type self: SudokuPuzzle
+        # @type m: int
+        assert 0 <= m <= self._n ** 2
+        # convenient names
+        symbols, n = self._symbols, self._n
+        # first position in m's column
+        c = m % n
+        # set of elements from symbols[c], symbols[c + n],
+        # ... symbols[c + (n * (n-1))]
+        return set([symbols[c + (i * n)] for i in range(n)])
+
+    def _subsquare_set(self, m):
+        # Return set of symbols in subsquare of SudokuPuzzle self's symbols
+        # where position m occurs.
+        #
+        # @type self: Sudoku Puzzle
+        # @type m: int
+        assert 0 <= m < self._n ** 2
+        # convenient names
+        n, symbols = self._n, self._symbols
+        # row, column where m occur
+        row, col = m // n, m % n
+        # length of subsquares
+        ss = round(n ** (1 / 2))
+        # upper-left position of m's subsquare
+        ul = (((row // ss) * ss) * n) + ((col // ss) * ss)
+        # return set of symbols from subsquare starting at ul
+        return set(
+            [symbols[ul + i + n * j] for i in range(ss) for j in range(ss)])
+
+
+
+
+class MNPuzzle(Puzzle):
+    """
+    An nxm puzzle, like the 15-puzzle, which may be solved, unsolved,
+    or even unsolvable.
+    """
+
+    def __init__(self, from_grid, to_grid):
+        """
+        MNPuzzle in state from_grid, working towards
+        state to_grid
+
+        @param MNPuzzle self: this MNPuzzle
+        @param tuple[tuple[str]] from_grid: current configuration
+        @param tuple[tuple[str]] to_grid: solution configuration
+        @rtype: None
+        """
+        # represent grid symbols with letters or numerals
+        # represent the empty space with a "*"
+        assert len(from_grid) > 0
+        assert all([len(r) == len(from_grid[0]) for r in from_grid])
+        assert all([len(r) == len(to_grid[0]) for r in to_grid])
+        self.n, self.m = len(from_grid), len(from_grid[0])
+        self.from_grid, self.to_grid = from_grid, to_grid
+
+    def __str__(self):
+        """
+        Return a string representation of MNpuzzle
+        
+        @type MNPuzzle
+        @rtype str
+        
+        >>> self = (("1", "2", "3"), ("4", "5", "*"))
+        >>> self.__str__()
+        '(("1", "2", "3"), ("4", "5", "*"))'
+        """
+        return '({})'.format(from_grid)
+#Once I know what this is suppose to look like a little more I should look str over
+
+    def __eq__(self, other):
+        """
+        Return if other is equivalent to self
+        
+        @type MNpuzzle
+        @type #ANYTHING?
+        @rtype bool
+        
+        >>> MNPuzzle.self = (("1", "2", "3"), ("4", "5", "*"))
+        >>> other = 'HELLO'
+        >>> MNPuzzle.__eq__(other)
+        False
+        
+        >>> MNPuzzle.self = (("1", "2", "3"), ("4", "5", "*"))
+        >>> other = (("1", "2", "3"), ("4", "5", "*"))
+        >>> MNPuzzle.__eq__(other)
+        True
+        """
+        return self == other
+#probably more complicated
+
+    # TODO
+    # __repr__ is up to you
+
+    # TODO
+    def is_solved(self):
+        """
+        Return True iff MNPuzzle is solved
+        
+        @type self: MNPuzzle
+        @rtype: bool
+        
+        >>> from_grid = (("1", "2", "3"), ("4", "5", "*"))
+        >>> to_grid = (("1", "2", "3"), ("4", "5", "*"))
+        >>> MNPPuzzle(from_grid, to_grid)
+        >>> MNPuzzle.is_solved()
+        True
+        
+        >>> MNPuzzle((("2", "*", "1"),("3", "4", "5")),(("1", "2", "3"),
+        ("4", "5", "*")))
+        >>> MNPuzzle.is_solved()
+        False
+        """
+        return from_grid == to_grid
+#Extension helper functions
+    
+    def empty_index(self):
+        """
+        Return the index of the character "*" in from_grid
+        
+        >>> MNPuzzle((("2", "*", "1"),("3", "4", "5")),(("1", "2", "3"),
+           ("4", "5", "*")))
+        >>> MNPuzzle.empty_index()
+        '[0][1]'
+#Finish example when I know what it should look like
+        
+        """
+        the_row = 0
+        for row in from_grid:
+            if "*" in row:
+                index = row.index("*")
+                return '[{}][{}]'.format(the_row, index)
+            else:
+                 the_row += 1
+#How can I represent this as something other than a str?
+ 
+     def swap_left(self):
+         """
+         If there is a character to the right of "*" swap it with "*"
+       
+         >>> MNPuzzle((("2", "*", "1"),("3", "4", "5")),(("1", "2", "3"),
+         ("4", "5", "*")))
+         >>> MNPuzzle.swap_left()
+         >>> Print(MNPuzzle)
+         (("2","1", "*"),("3", "4", "5")),(("1", "2", "3"),("4", "5", "*"))
+         """       
+        
+    # legal extensions are configurations that can be reached by swapping one
+    # symbol to the left, right, above, or below "*" with "*"
+ 
+    # TODO
+    # override is_solved
+    # a configuration is solved when from_grid is the same as to_grid
+
+
+class GridPegSolitairePuzzle(Puzzle):
+    """
+    Snapshot of peg solitaire on a rectangular grid. May be solved,
+    unsolved, or even unsolvable.
+    """
+
+    def __init__(self, marker, marker_set):
+        """
+        Create a new GridPegSolitairePuzzle self with
+        marker indicating pegs, spaces, and unused
+        and marker_set indicating allowed markers.
+
+        @type marker: list[list[str]]
+        @type marker_set: set[str]
+                          "#" for unused, "*" for peg, "." for empty
+        """
+        assert isinstance(marker, list)
+        assert len(marker) > 0
+        assert all([len(x) == len(marker[0]) for x in marker[1:]])
+        assert all([all(x in marker_set for x in row) for row in marker])
+        assert all([x == "*" or x == "." or x == "#" for x in marker_set])
+        self._marker, self._marker_set = marker, marker_set
+
+    # TODO
+    # implement __eq__, __str__ methods
+    def __eq__(self, other):
+        """
+        @type self: GridPegSolitairePuzzle
+        @type: object
+        @rtype: bool
+        
+        Return True if other is equal to sekf, otherwise return False
+        
+        >>>  self = [["*", "*", "*", "*", "*"],["*", "*", "*", "*", "*"], \
+        ["*", "*", "*", "*", "*"],["*", "*", ".", "*", "*"], \
+        ["*", "*", "*", "*", "*"]]
+        >>>  other = [["*", "*", "*", "*", "*"],["*", "*", "*", "*", "*"], \
+        ["*", "*", "*", "*", "*"],["*", "*", ".", "*", "*"], \
+        ["*", "*", "*", "*", "*"]]
+        >>> GridPegSolitairePuzzle.__eq__(self, other)
+        True
+        
+        >>>  self = [["*", "*", "*", "*", "*"],["*", "*", "*", "*", "*"], \
+        ["*", "*", "*", "*", "*"],["*", "*", ".", "*", "*"], \
+        ["*", "*", "*", "*", "*"]]
+        >>>  other = [["*", ".", "*", "*", "*"],["*", "*", "*", "*", "*"], \
+        ["*", "*", "*", "*", "*"],["*", "*", ".", "*", "*"], \
+        ["*", "*", "*", "*", "*"]]
+        >>> GridPegSolitairePuzzle.__eq__(self, other)
+        False
+        """
+        return self == other
+#maybe check types as well?
+    
+    def __str__(self):
+        """
+        @type self: GridPegSolitairePuzzle
+        @rtype: str
+        
+        Return a string representation of self
+        
+        >>> GridPegSolitairePuzzle([["*", "*", "*", "*", "*"],["*", "*", "*", \
+        "*", "*"], \
+        ["*", "*", "*", "*", "*"],["*", "*", ".", "*", "*"], \
+        ["*", "*", "*", "*", "*"]], {['.','*']})
+        >>> GridPegSolitairePuzzle.__str__()
+        '[["*", "*", "*", "*", "*"],["*", "*", "*", "*", "*"], \
+        ["*", "*", "*", "*", "*"],["*", "*", ".", "*", "*"], \
+        ["*", "*", "*", "*", "*"]], {['.','*']}'
+        """
+        return '{},{}'.format(self._marker, self._marker_set)
+    
+    # __repr__ is up to you
+
+    # TODO
+    # override extensions
+    # legal extensions consist of all configurations that can be reached by
+    # making a single jump from this configuration
+    def extensions(self):
+        """
+        """
+        pass
+    # TODO
+    # override is_solved
+    # A configuration is solved when there is exactly one "*" left
+    def is_solved(self):
+        """
+        """
+        pass
+
+
